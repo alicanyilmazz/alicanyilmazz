@@ -73,16 +73,52 @@
 
 ###
 
+USE [DatabaseAdin];
+
+DECLARE @SchemaName NVARCHAR(128) = 'dbo';
+DECLARE @TableName NVARCHAR(128) = 'TM';
+
+-- Öncelikle tablo kolonlarını alalım
+DECLARE @Columns TABLE (ColumnName NVARCHAR(128));
+INSERT INTO @Columns (ColumnName)
+SELECT name FROM sys.columns 
+WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
+
+-- Tablomuzu kullanan tüm SP/View leri bulalım
+WITH ReferencingObjects AS
+(
+    SELECT DISTINCT 
+        o.object_id,
+        OBJECT_SCHEMA_NAME(o.object_id) AS SchemaName,
+        OBJECT_NAME(o.object_id) AS ObjectName,
+        o.type_desc AS ObjectType,
+        m.definition AS ObjectDefinition
+    FROM sys.sql_expression_dependencies d
+    INNER JOIN sys.objects o ON d.referencing_id = o.object_id
+    INNER JOIN sys.sql_modules m ON o.object_id = m.object_id
+    WHERE d.referenced_entity_name = @TableName
+      AND d.referenced_schema_name = @SchemaName
+      AND o.type IN ('P', 'V')
+)
+
+-- Kolon bazında analiz edelim
 SELECT 
-    OBJECT_SCHEMA_NAME(sed.referencing_id) AS ReferencingSchema,
-    OBJECT_NAME(sed.referencing_id)        AS ReferencingObject,
-    o.type_desc                            AS ObjectType,
-    COALESCE(COL_NAME(sed.referenced_id, sed.referenced_minor_id), '(n/a)') AS ColumnName
-FROM sys.sql_expression_dependencies AS sed
-JOIN sys.objects AS o 
-    ON sed.referencing_id = o.object_id
-WHERE sed.referenced_id = OBJECT_ID(N'<SemaAdı>.<TabloAdı>')
-  AND o.type IN ('P', 'V'); 
+    r.SchemaName AS ReferencingSchema,
+    r.ObjectName AS ReferencingObject,
+    r.ObjectType,
+    c.ColumnName,
+    CASE 
+       WHEN r.ObjectDefinition LIKE '%' + c.ColumnName + '%' THEN '✅ Var'
+       ELSE '❌ Yok'
+    END AS ColumnUsage,
+    CASE 
+       WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN '⚠️ SELECT * Kullanılmış'
+       ELSE ''
+    END AS SelectStarWarning
+FROM ReferencingObjects r
+CROSS JOIN @Columns c
+ORDER BY r.ObjectType, r.ObjectName, c.ColumnName;
+
 
 
 

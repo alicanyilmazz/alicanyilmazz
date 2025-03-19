@@ -77,29 +77,17 @@ USE [DatabaseAdin];
 
 DECLARE @SchemaName NVARCHAR(128) = 'dbo';
 DECLARE @TableName NVARCHAR(128) = 'TM';
-DECLARE @ColumnName NVARCHAR(128) = NULL;  -- Buraya kolon adı yazabilirsin (ör: 'CARD_NUMBER'). Eğer NULL ise tüm kolonları arar.
+DECLARE @ColumnName NVARCHAR(128) = NULL;  -- İstersen kolon adını ver, istemezsen NULL bırak.
 
 -- Kolonları tablo değişkenine alalım
 DECLARE @Columns TABLE (ColumnName NVARCHAR(128));
 
-IF @ColumnName IS NULL
-BEGIN
-    -- Tüm kolonlar alınır
-    INSERT INTO @Columns (ColumnName)
-    SELECT name FROM sys.columns 
-    WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
-END
-ELSE
-BEGIN
-    -- Tek kolon alınır
-    INSERT INTO @Columns (ColumnName)
-    SELECT name FROM sys.columns 
-    WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName))
-      AND name = @ColumnName;
-END
+INSERT INTO @Columns (ColumnName)
+SELECT name FROM sys.columns 
+WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
 
--- Tablonun kullanıldığı SP ve View'leri bulalım
-WITH ReferencingObjects AS
+-- Tabloyu kullanan tüm SP ve View'leri bulalım
+;WITH ReferencingObjects AS
 (
     SELECT DISTINCT 
         o.object_id,
@@ -114,27 +102,31 @@ WITH ReferencingObjects AS
       AND o.type IN ('P', 'V')
 )
 
--- Kolon kullanım durumlarını gösterelim
+-- Sonuç sorgusu
 SELECT 
     r.SchemaName AS ReferencingSchema,
     r.ObjectName AS ReferencingObject,
     r.ObjectType,
-    c.ColumnName,
     CASE 
-        WHEN r.ObjectDefinition LIKE '%' + c.ColumnName + '%' THEN '✅ Var'
-        ELSE '❌ Yok'
+        WHEN @ColumnName IS NULL THEN c.ColumnName
+        ELSE @ColumnName
+    END AS CheckedColumn,
+    CASE 
+       WHEN @ColumnName IS NULL THEN 
+           CASE WHEN m.definition LIKE '%' + c.ColumnName + '%' THEN '✅ Var' ELSE '❌ Yok' END
+       ELSE
+           CASE WHEN m.definition LIKE '%' + @ColumnName + '%' THEN '✅ Var' ELSE '❌ Yok' END
     END AS ColumnUsage,
-    CASE 
-        WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN '⚠️ SELECT * Kullanılmış'
-        ELSE ''
-    END AS Warning
+    -- Bu SP/View'in kullandığı tüm kolonları virgülle yan yana yaz
+    STUFF(
+        (SELECT ', ' + col.ColumnName
+         FROM @Columns col
+         WHERE m.definition LIKE '%' + columNname + '%'
+         FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AllUsedColumns
 FROM ReferencingObjects r
+LEFT JOIN sys.sql_modules m ON r.object_id = m.object_id
 CROSS JOIN @Columns c
+WHERE (@ColumnName IS NULL OR c.ColumnName = @ColumnName)
 ORDER BY r.ObjectType, r.ObjectName, c.ColumnName;
-
-
-
-
-
 
 

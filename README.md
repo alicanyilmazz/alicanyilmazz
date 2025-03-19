@@ -78,18 +78,14 @@ USE [DatabaseAdin];
 DECLARE @SchemaName NVARCHAR(128) = 'dbo';
 DECLARE @TableName NVARCHAR(128) = 'TM';
 
-SELECT 
-    OBJECT_SCHEMA_NAME(d.referencing_id) AS ReferencingSchema,
-    OBJECT_NAME(d.referencing_id) AS ReferencingObject,
-    o.type_desc AS ObjectType,
-    c.name AS ColumnName
-FROM sys.sql_expression_dependencies d
-INNER JOIN sys.objects o ON d.referencing_id = o.object_id
-INNER JOIN sys.columns c ON c.object_id = d.referenced_id AND c.column_id = d.referenced_minor_id
-INNER JOIN sys.objects referenced ON d.referenced_id = referenced.object_id
-WHERE referenced.name = @TableName
-  AND referenced.schema_id = SCHEMA_ID(@SchemaName)
-  AND o.type IN ('P', 'V') -- Stored Procedure ve View
-ORDER BY ReferencingObject, ColumnName;
+SELECT DISTINCT
+    referencing_schema_name AS ReferencingSchema,
+    referencing_entity_name AS ReferencingObject,
+    referencing_class_desc AS ReferencingObjectType,
+    referenced_minor_name AS ColumnName
+FROM sys.dm_sql_referencing_entities (@SchemaName + '.' + @TableName, 'OBJECT')
+WHERE referenced_minor_name IS NOT NULL
+ORDER BY ReferencingSchemaName, ReferencingObject, ColumnName;
+
 
 

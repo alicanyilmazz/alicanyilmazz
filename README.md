@@ -77,14 +77,28 @@ USE [DatabaseAdin];
 
 DECLARE @SchemaName NVARCHAR(128) = 'dbo';
 DECLARE @TableName NVARCHAR(128) = 'TM';
+DECLARE @ColumnName NVARCHAR(128) = NULL;  -- Buraya kolon adı yazabilirsin (ör: 'CARD_NUMBER'). Eğer NULL ise tüm kolonları arar.
 
--- Öncelikle tablo kolonlarını alalım
+-- Kolonları tablo değişkenine alalım
 DECLARE @Columns TABLE (ColumnName NVARCHAR(128));
-INSERT INTO @Columns (ColumnName)
-SELECT name FROM sys.columns 
-WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
 
--- Tablomuzu kullanan tüm SP/View leri bulalım
+IF @ColumnName IS NULL
+BEGIN
+    -- Tüm kolonlar alınır
+    INSERT INTO @Columns (ColumnName)
+    SELECT name FROM sys.columns 
+    WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
+END
+ELSE
+BEGIN
+    -- Tek kolon alınır
+    INSERT INTO @Columns (ColumnName)
+    SELECT name FROM sys.columns 
+    WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName))
+      AND name = @ColumnName;
+END
+
+-- Tablonun kullanıldığı SP ve View'leri bulalım
 WITH ReferencingObjects AS
 (
     SELECT DISTINCT 
@@ -96,28 +110,28 @@ WITH ReferencingObjects AS
     FROM sys.sql_expression_dependencies d
     INNER JOIN sys.objects o ON d.referencing_id = o.object_id
     INNER JOIN sys.sql_modules m ON o.object_id = m.object_id
-    WHERE d.referenced_entity_name = @TableName
-      AND d.referenced_schema_name = @SchemaName
+    WHERE d.referenced_id = OBJECT_ID(@SchemaName + '.' + @TableName)
       AND o.type IN ('P', 'V')
 )
 
--- Kolon bazında analiz edelim
+-- Kolon kullanım durumlarını gösterelim
 SELECT 
     r.SchemaName AS ReferencingSchema,
     r.ObjectName AS ReferencingObject,
     r.ObjectType,
     c.ColumnName,
     CASE 
-       WHEN r.ObjectDefinition LIKE '%' + c.ColumnName + '%' THEN '✅ Var'
-       ELSE '❌ Yok'
+        WHEN r.ObjectDefinition LIKE '%' + c.ColumnName + '%' THEN '✅ Var'
+        ELSE '❌ Yok'
     END AS ColumnUsage,
     CASE 
-       WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN '⚠️ SELECT * Kullanılmış'
-       ELSE ''
-    END AS SelectStarWarning
+        WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN '⚠️ SELECT * Kullanılmış'
+        ELSE ''
+    END AS Warning
 FROM ReferencingObjects r
 CROSS JOIN @Columns c
 ORDER BY r.ObjectType, r.ObjectName, c.ColumnName;
+
 
 
 

@@ -72,3 +72,18 @@
 </div>
 
 ###
+
+USE [DatabaseAdin];
+
+DECLARE @Schema NVARCHAR(128) = 'dbo';
+DECLARE @Table NVARCHAR(128) = 'TM';
+
+SELECT DISTINCT
+    OBJECT_SCHEMA_NAME(o.object_id) AS SchemaName,
+    OBJECT_NAME(o.object_id) AS ObjectName,
+    o.type_desc AS ObjectType
+FROM sys.sql_modules m
+INNER JOIN sys.objects o ON m.object_id = o.object_id
+WHERE m.definition LIKE '%' + @SchemaName + '.' + @TableName + '%'
+   OR m.definition LIKE '%' + @TableName + '%'
+ORDER BY ObjectType, ObjectName;

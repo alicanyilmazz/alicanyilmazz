@@ -77,16 +77,15 @@ USE [DatabaseAdin];
 
 DECLARE @SchemaName NVARCHAR(128) = 'dbo';
 DECLARE @TableName NVARCHAR(128) = 'TM';
-DECLARE @ColumnName NVARCHAR(128) = NULL;  -- İstersen kolon adını ver, istemezsen NULL bırak.
+DECLARE @ColumnName NVARCHAR(128) = NULL; -- Kolon adı ver, ya da NULL bırak tüm kolonları ara.
 
--- Kolonları tablo değişkenine alalım
+-- Tablo kolonlarını tablo değişkenine aktaralım
 DECLARE @Columns TABLE (ColumnName NVARCHAR(128));
-
 INSERT INTO @Columns (ColumnName)
 SELECT name FROM sys.columns 
 WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
 
--- Tabloyu kullanan tüm SP ve View'leri bulalım
+-- Tabloyu kullanan tüm SP/View'leri alalım
 ;WITH ReferencingObjects AS
 (
     SELECT DISTINCT 
@@ -102,31 +101,21 @@ WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName)
       AND o.type IN ('P', 'V')
 )
 
--- Sonuç sorgusu
+-- Son raporu üretelim:
 SELECT 
     r.SchemaName AS ReferencingSchema,
     r.ObjectName AS ReferencingObject,
     r.ObjectType,
+    STRING_AGG(CASE WHEN r.ObjectDefinition LIKE '%' + col.ColumnName + '%' THEN col.ColumnName ELSE NULL END, ', ') AS UsedColumns,
     CASE 
-        WHEN @ColumnName IS NULL THEN c.ColumnName
-        ELSE @ColumnName
-    END AS CheckedColumn,
-    CASE 
-       WHEN @ColumnName IS NULL THEN 
-           CASE WHEN m.definition LIKE '%' + c.ColumnName + '%' THEN '✅ Var' ELSE '❌ Yok' END
-       ELSE
-           CASE WHEN m.definition LIKE '%' + @ColumnName + '%' THEN '✅ Var' ELSE '❌ Yok' END
-    END AS ColumnUsage,
-    -- Bu SP/View'in kullandığı tüm kolonları virgülle yan yana yaz
-    STUFF(
-        (SELECT ', ' + col.ColumnName
-         FROM @Columns col
-         WHERE m.definition LIKE '%' + columNname + '%'
-         FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AllUsedColumns
-FROM ReferencingObjects r
-LEFT JOIN sys.sql_modules m ON r.object_id = m.object_id
-CROSS JOIN @Columns c
-WHERE (@ColumnName IS NULL OR c.ColumnName = @ColumnName)
-ORDER BY r.ObjectType, r.ObjectName, c.ColumnName;
+       WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN '⚠️ SELECT * kullanılmış'
+       ELSE ''
+    END AS SelectStarWarning,
+    COUNT(CASE WHEN r.ObjectDefinition LIKE '%' + col.ColumnName + '%' THEN 1 END) AS UsedColumnCount,
+    COUNT(CASE WHEN r.ObjectDefinition NOT LIKE '%' + col.ColumnName + '%' THEN 1 END) AS UnusedColumnCount
+FROM @Columns col
+CROSS JOIN ReferencingObjects r
+GROUP BY r.SchemaName, r.ObjectName, r.ObjectType, r.ObjectDefinition
+ORDER BY r.ObjectType, r.ObjectName;
 
 

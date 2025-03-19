@@ -77,15 +77,15 @@ USE [DatabaseAdin];
 
 DECLARE @SchemaName NVARCHAR(128) = 'dbo';
 DECLARE @TableName NVARCHAR(128) = 'TM';
-DECLARE @ColumnName NVARCHAR(128) = NULL; -- Kolon adı ver, ya da NULL bırak tüm kolonları ara.
+DECLARE @ColumnName NVARCHAR(128) = NULL; -- Kolon adını yaz veya NULL bırak.
 
--- Tablo kolonlarını tablo değişkenine aktaralım
+-- Kolonları tablo değişkenine aktar
 DECLARE @Columns TABLE (ColumnName NVARCHAR(128));
 INSERT INTO @Columns (ColumnName)
 SELECT name FROM sys.columns 
 WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName));
 
--- Tabloyu kullanan tüm SP/View'leri alalım
+-- Tabloyu kullanan tüm SP ve View’leri al
 ;WITH ReferencingObjects AS
 (
     SELECT DISTINCT 
@@ -101,21 +101,37 @@ WHERE object_id = OBJECT_ID(QUOTENAME(@SchemaName) + '.' + QUOTENAME(@TableName)
       AND o.type IN ('P', 'V')
 )
 
--- Son raporu üretelim:
 SELECT 
     r.SchemaName AS ReferencingSchema,
     r.ObjectName AS ReferencingObject,
     r.ObjectType,
-    STRING_AGG(CASE WHEN r.ObjectDefinition LIKE '%' + col.ColumnName + '%' THEN col.ColumnName ELSE NULL END, ', ') AS UsedColumns,
-    CASE 
-       WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN '⚠️ SELECT * kullanılmış'
-       ELSE ''
-    END AS SelectStarWarning,
-    COUNT(CASE WHEN r.ObjectDefinition LIKE '%' + col.ColumnName + '%' THEN 1 END) AS UsedColumnCount,
-    COUNT(CASE WHEN r.ObjectDefinition NOT LIKE '%' + col.ColumnName + '%' THEN 1 END) AS UnusedColumnCount
-FROM @Columns col
-CROSS JOIN ReferencingObjects r
-GROUP BY r.SchemaName, r.ObjectName, r.ObjectType, r.ObjectDefinition
+    CASE WHEN @ColumnName IS NOT NULL THEN @ColumnName ELSE '-' END AS CheckedColumn,
+    CASE WHEN @ColumnName IS NOT NULL THEN
+        CASE WHEN r.ObjectDefinition LIKE '%' + @ColumnName + '%' THEN 'Var' ELSE 'Yok' END
+        ELSE '-' END AS ColumnExists,
+    CASE WHEN r.ObjectDefinition LIKE '%SELECT *%' THEN 'SELECT * kullanılmış'
+         ELSE '-' END AS SelectStarUsed,
+    -- Kullanılan tüm kolonları yan yana yaz
+    CASE WHEN @ColumnName IS NULL THEN
+        STUFF((SELECT ', ' + col.ColumnName
+               FROM @Columns col
+               WHERE r.ObjectDefinition LIKE '%' + col.ColumnName + '%'
+               FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, '')
+         ELSE '-' END AS AllUsedColumns,
+    -- Kullanılan / Kullanılmayan kolon sayısı
+    (SELECT COUNT(*) FROM @Columns col WHERE r.ObjectDefinition LIKE '%' + col.ColumnName + '%') AS UsedColumnCount,
+    (SELECT COUNT(*) FROM @Columns col WHERE r.ObjectDefinition NOT LIKE '%' + col.ColumnName + '%') AS UnusedColumnCount
+FROM ReferencingObjects r
 ORDER BY r.ObjectType, r.ObjectName;
+
+-- Toplam var/yok sayısını da verelim:
+IF(@ColumnName IS NOT NULL)
+BEGIN
+    SELECT 
+        SUM(CASE WHEN ObjectDefinition LIKE '%' + @ColumnName + '%' THEN 1 ELSE 0 END) AS TotalExistsCount,
+        SUM(CASE WHEN ObjectDefinition NOT LIKE '%' + @ColumnName + '%' THEN 1 ELSE 0 END) AS TotalNotExistsCount
+    FROM ReferencingObjects;
+END
+
 
 

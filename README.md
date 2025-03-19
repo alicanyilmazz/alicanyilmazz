@@ -73,19 +73,17 @@
 
 ###
 
-USE [DatabaseAdin];
+SELECT 
+    OBJECT_SCHEMA_NAME(sed.referencing_id) AS ReferencingSchema,
+    OBJECT_NAME(sed.referencing_id)        AS ReferencingObject,
+    o.type_desc                            AS ObjectType,
+    COALESCE(COL_NAME(sed.referenced_id, sed.referenced_minor_id), '(n/a)') AS ColumnName
+FROM sys.sql_expression_dependencies AS sed
+JOIN sys.objects AS o 
+    ON sed.referencing_id = o.object_id
+WHERE sed.referenced_id = OBJECT_ID(N'<SemaAdı>.<TabloAdı>')
+  AND o.type IN ('P', 'V'); 
 
-DECLARE @SchemaName NVARCHAR(128) = 'dbo';
-DECLARE @TableName NVARCHAR(128) = 'TM';
-
-SELECT DISTINCT
-    referencing_schema_name AS ReferencingSchema,
-    referencing_entity_name AS ReferencingObject,
-    referencing_class_desc AS ReferencingObjectType,
-    referenced_minor_name AS ColumnName
-FROM sys.dm_sql_referencing_entities (@SchemaName + '.' + @TableName, 'OBJECT')
-WHERE referenced_minor_name IS NOT NULL
-ORDER BY ReferencingSchemaName, ReferencingObject, ColumnName;
 
 
 

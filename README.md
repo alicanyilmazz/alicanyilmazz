@@ -73,17 +73,19 @@
 
 ###
 
-USE [DatabaseAdin];
+USE [SeninDBAdin];
 
-DECLARE @Schema NVARCHAR(128) = 'dbo';
-DECLARE @Table NVARCHAR(128) = 'TM';
+DECLARE @SchemaName NVARCHAR(128) = 'dbo';
+DECLARE @TableName NVARCHAR(128) = 'TM';
 
 SELECT DISTINCT
-    OBJECT_SCHEMA_NAME(o.object_id) AS SchemaName,
-    OBJECT_NAME(o.object_id) AS ObjectName,
+    OBJECT_SCHEMA_NAME(d.referencing_id) AS ReferencingSchema,
+    OBJECT_NAME(d.referencing_id) AS ReferencingObject,
     o.type_desc AS ObjectType
-FROM sys.sql_modules m
-INNER JOIN sys.objects o ON m.object_id = o.object_id
-WHERE m.definition LIKE '%' + @SchemaName + '.' + @TableName + '%'
-   OR m.definition LIKE '%' + @TableName + '%'
-ORDER BY ObjectType, ObjectName;
+FROM sys.sql_expression_dependencies d
+INNER JOIN sys.objects o ON d.referencing_id = o.object_id
+WHERE d.referenced_entity_name = @TableName
+  AND d.referenced_schema_name = @SchemaName
+  AND o.type IN ('P', 'V') -- Stored Procedure ve View'leri getirir
+ORDER BY ObjectType, ReferencingObject;
+

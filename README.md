@@ -6,7 +6,7 @@
 
 ###
 
-<h4 align="left">- 🔭 I'm working on as software engineer.<br>- 📚  Domain Experience : #Payment Systems #Debit And Prepaid Card<br>- ⚡Software Engineer at Intertech.<br>-  ⚡İstanbul </h4>
+<h4 align="left">- 🔭 I'm working on as software engineer.<br>- 📚  Domain Experience : #Payment Systems #ATM Application #Debit And Prepaid Card<br>- ⚡Software Engineer at Intertech.<br>-  ⚡İstanbul </h4>
 
 ###
 

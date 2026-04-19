@@ -8,5 +8,6 @@
 </h4>
 
 <h3 align="left">🛠 Language and Tools</h3>
-<img width="646" height="69" alt="image" src="https://github.com/user-attachments/assets/787aa6e2-ee01-455a-b883-f572dd711df5" />
+<img width="654" height="79" alt="image" src="https://github.com/user-attachments/assets/83be9256-e19f-4428-aa5f-247180b05ae8" />
+
 

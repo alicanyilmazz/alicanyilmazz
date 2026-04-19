@@ -13,7 +13,7 @@
 <h3 align="left">🛠 Language and tools</h3>
 
 ###
-<div align="left">
+<div align="center">
   <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dotnetcore/dotnetcore-original.svg" height="20" width="20" alt="dotnetcore logo"  />
   <img width="12" />
   <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dot-net/dot-net-plain-wordmark.svg" height="20" width="20" alt="dot-net logo"  />
